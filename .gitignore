@@ -1,0 +1,34 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+
+# Type checker / linter caches
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Session (contains tokens)
+midealocal-toshiba-session.json
+
+IoLIFE*
+reference-toshiba-iolife
