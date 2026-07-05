@@ -1,6 +1,5 @@
 """High-level Toshiba AC client using IOLife cloud relay."""
 
-import json
 from typing import Any
 
 from midealocal_toshiba.cloud import IoLifeClient
@@ -10,7 +9,6 @@ from midealocal_toshiba.converter import (
     build_ac_control_body,
     build_ac_power_body,
     build_ac_query_body,
-    parse_wifidatagram,
 )
 
 

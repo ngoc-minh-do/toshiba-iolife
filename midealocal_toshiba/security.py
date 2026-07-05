@@ -1,8 +1,6 @@
 """Toshiba IOLife security: key derivation, AES, sign, encoding."""
 
-import random
 from hashlib import sha256, md5
-from urllib.parse import urlencode
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -63,6 +61,14 @@ def aes_decrypt_hex(cipher_hex: str, key_text: str, iv_text: str | None = None) 
     else:
         cipher = AES.new(key, AES.MODE_ECB)
     return unpad(cipher.decrypt(raw), 16).decode("utf-8")
+
+
+def encrypt_password(raw_password: str) -> str:
+    return aes_encrypt_hex(raw_password, app_key_crypto_key())
+
+
+def decrypt_password(encrypted: str) -> str:
+    return aes_decrypt_hex(encrypted, app_key_crypto_key())
 
 
 def bytes_to_dec_string(data: bytes) -> str:

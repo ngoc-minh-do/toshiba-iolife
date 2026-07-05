@@ -24,16 +24,20 @@ from midealocal_toshiba.security import (
     sign_v1,
 )
 from midealocal_toshiba.converter import (
-    build_ac_power_body,
-    build_ac_query_body,
-    build_ac_control_body,
-    build_ac_uart_payload,
     build_wifidatagram,
     parse_wifidatagram,
 )
 
 AC_REQUEST_CONTROL = 0x0002
 AC_REQUEST_QUERY = 0x0003
+
+SESSION_ERROR_CODES = frozenset({3004, 3106, 4353})
+
+
+class SessionExpiredError(RuntimeError):
+    def __init__(self, message: str, response: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.response = response
 
 
 class IoLifeClient:
@@ -70,7 +74,18 @@ class IoLifeClient:
             params["sessionId"] = session_id
         return params
 
-    def _post(self, endpoint: str, params: dict[str, Any], signed: bool = True) -> dict[str, Any]:
+    @staticmethod
+    def _check_session_error(data: dict[str, Any]) -> None:
+        error_code = str(data.get("errorCode", "")).strip()
+        if error_code in ("3004", "3106", "4353"):
+            raise SessionExpiredError(f"session expired (errorCode={error_code})", data)
+        msg = str(data.get("message", ""))
+        if str(data.get("code", "")) == "" and "invalidSession" in msg:
+            raise SessionExpiredError(f"session expired: {msg}", data)
+
+    def _post(
+        self, endpoint: str, params: dict[str, Any], signed: bool = True
+    ) -> dict[str, Any]:
         path = self._request_path(endpoint)
         payload: dict[str, Any] = dict(params)
         if signed:
@@ -88,9 +103,11 @@ class IoLifeClient:
         except urllib.error.URLError as exc:
             raise RuntimeError(f"network error: {exc}") from exc
         try:
-            return json.loads(text)
+            data = json.loads(text)
         except json.JSONDecodeError:
             raise RuntimeError(f"invalid JSON response: {text}") from None
+        self._check_session_error(data)
+        return data
 
     def get_login_id(self, account: str) -> str:
         params = self._base_params()

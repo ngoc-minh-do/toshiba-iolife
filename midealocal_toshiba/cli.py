@@ -6,7 +6,8 @@ import pathlib
 import sys
 from typing import Any
 
-from midealocal_toshiba.cloud import IoLifeClient
+from midealocal_toshiba.cloud import IoLifeClient, SessionExpiredError
+from midealocal_toshiba.security import encrypt_password, decrypt_password
 from midealocal_toshiba.converter import (
     build_ac_query_body,
     build_ac_control_body,
@@ -26,6 +27,28 @@ def load_session() -> dict[str, Any]:
 def save_session(data: dict[str, Any]) -> None:
     SESSION_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+def _do_relogin(session: dict[str, Any]) -> None:
+    encrypted = session.get("encryptedPassword")
+    if not encrypted:
+        raise RuntimeError("No encrypted password in session file. Run 'login' first.")
+    password = decrypt_password(encrypted)
+    account = session.get("account")
+    if not account:
+        raise RuntimeError("No account in session file.")
+    client = IoLifeClient()
+    new_session = client.login(account=account, password=password)
+    new_session["encryptedPassword"] = encrypted
+    save_session(new_session)
+
+
+def _cmd_with_retry(args: argparse.Namespace, fn: Any) -> None:
+    try:
+        fn(args)
+    except SessionExpiredError:
+        print("Session expired, re-logging in...", file=sys.stderr)
+        _do_relogin(load_session())
+        fn(args)
+
 
 def cmd_login(args: argparse.Namespace) -> None:
     client = IoLifeClient(language=args.language)
@@ -35,6 +58,7 @@ def cmd_login(args: argparse.Namespace) -> None:
         push_type=args.push_type,
         push_token=args.push_token,
     )
+    session["encryptedPassword"] = encrypt_password(args.password)
     save_session(session)
     print(f"Saved session to {SESSION_FILE}")
     print(json.dumps({
@@ -54,6 +78,10 @@ def _require_session(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def cmd_devices(args: argparse.Namespace) -> None:
+    _cmd_with_retry(args, _cmd_devices_impl)
+
+
+def _cmd_devices_impl(args: argparse.Namespace) -> None:
     session = load_session()
     session_id = args.session_id or session.get("sessionId")
     if not session_id:
@@ -64,6 +92,10 @@ def cmd_devices(args: argparse.Namespace) -> None:
 
 
 def cmd_device_info(args: argparse.Namespace) -> None:
+    _cmd_with_retry(args, _cmd_device_info_impl)
+
+
+def _cmd_device_info_impl(args: argparse.Namespace) -> None:
     session = load_session()
     session_id = args.session_id or session.get("sessionId")
     if not session_id:
@@ -78,6 +110,10 @@ def cmd_device_info(args: argparse.Namespace) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> None:
+    _cmd_with_retry(args, _cmd_status_impl)
+
+
+def _cmd_status_impl(args: argparse.Namespace) -> None:
     session = _require_session(args)
     client = IoLifeClient(language=args.language)
     payload = build_ac_query_body("all")
@@ -144,6 +180,10 @@ def _send_control(args: argparse.Namespace, props: list[tuple[int, int]]) -> Non
 
 
 def cmd_set(args: argparse.Namespace) -> None:
+    _cmd_with_retry(args, _cmd_set_impl)
+
+
+def _cmd_set_impl(args: argparse.Namespace) -> None:
     props: list[tuple[int, int]] = []
     if args.power is not None:
         props.append((0x01, 1 if args.power == "on" else 0))

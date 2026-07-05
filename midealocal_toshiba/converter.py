@@ -8,7 +8,7 @@ import random
 from datetime import datetime
 from typing import Any
 
-from midealocal_toshiba.security import CRC8_854_TABLE, crc16_ccitt, crc8_854
+from midealocal_toshiba.security import crc16_ccitt, crc8_854
 
 AC_DEVICE_TYPE = 0xAC
 AC_REQUEST_CONTROL = 0x0002
